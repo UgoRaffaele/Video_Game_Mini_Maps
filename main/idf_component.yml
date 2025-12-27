@@ -3,8 +3,6 @@ dependencies:
   lvgl/lvgl:
     version: 9.2.0
     public: true
-  espressif/esp_hosted: '*'
-  espressif/esp_wifi_remote: '*'
   ## Required IDF version
   idf:
     version: '>=4.1.0'

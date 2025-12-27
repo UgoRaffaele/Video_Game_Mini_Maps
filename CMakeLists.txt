@@ -6,7 +6,6 @@ include($ENV{IDF_PATH}/tools/cmake/project.cmake)
 
 set(EXTRA_COMPONENT_DIRS
     ./components/bsp_extra
-    ./components/CANBus_Driver
     ./components/gps_locator
     )
 

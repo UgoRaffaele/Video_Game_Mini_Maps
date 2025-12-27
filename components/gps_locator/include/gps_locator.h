@@ -11,9 +11,9 @@ extern "C" {
 #define MAP_TILES_GRID_ROWS 3
 #define MAP_TILES_BYTES_PER_PIXEL 2
 #define MAP_TILES_COLOR_FORMAT LV_COLOR_FORMAT_RGB565
-#define MAP_HEIGHT 500
-#define MAP_WIDTH 500
-#define MAP_ZOOM 16
+#define MAP_HEIGHT 466
+#define MAP_WIDTH 466
+#define MAP_ZOOM 18
 #define BASE_PATH "/sdcard"
 #define TILE_FOLDER "tiles1"
 #define STEP_ANIMATION_DURATION 500

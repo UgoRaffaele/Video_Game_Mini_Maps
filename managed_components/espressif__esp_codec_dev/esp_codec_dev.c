@@ -212,6 +212,43 @@ int esp_codec_dev_open(esp_codec_dev_handle_t handle, esp_codec_dev_sample_info_
     return ESP_CODEC_DEV_OK;
 }
 
+int esp_codec_dev_read_reg(esp_codec_dev_handle_t handle, int reg, int *val)
+{
+    codec_dev_t *dev = (codec_dev_t *) handle;
+    if (dev == NULL || val == NULL) {
+        return ESP_CODEC_DEV_INVALID_ARG;
+    }
+    if (dev->codec_if && dev->codec_if->get_reg) {
+        return dev->codec_if->get_reg(dev->codec_if, reg, val);
+    }
+    return ESP_CODEC_DEV_NOT_SUPPORT;
+}
+
+int esp_codec_dev_write_reg(esp_codec_dev_handle_t handle, int reg, int val)
+{
+    codec_dev_t *dev = (codec_dev_t *) handle;
+    if (dev == NULL) {
+        return ESP_CODEC_DEV_INVALID_ARG;
+    }
+    if (dev->codec_if && dev->codec_if->set_reg) {
+        return dev->codec_if->set_reg(dev->codec_if, reg, val);
+    }
+    return ESP_CODEC_DEV_NOT_SUPPORT;
+}
+
+int esp_codec_dev_dump_reg(esp_codec_dev_handle_t handle)
+{
+    codec_dev_t *dev = (codec_dev_t *) handle;
+    if (dev == NULL) {
+        return ESP_CODEC_DEV_INVALID_ARG;
+    }
+    if (dev->codec_if && dev->codec_if->dump_reg) {
+        dev->codec_if->dump_reg(dev->codec_if);
+        return ESP_CODEC_DEV_OK;
+    }
+    return ESP_CODEC_DEV_NOT_SUPPORT;
+}
+
 int esp_codec_dev_read(esp_codec_dev_handle_t handle, void *data, int len)
 {
     codec_dev_t *dev = (codec_dev_t *) handle;
@@ -349,7 +386,7 @@ int esp_codec_dev_set_out_mute(esp_codec_dev_handle_t handle, bool mute)
     }
     // When codec not support mute set volume instead
     if (dev->sw_vol) {
-        float db_value = mute ? -100.0 : dev->volume;
+        float db_value = mute ? -100.0 : _get_vol_db(&dev->vol_curve, dev->volume);
         dev->sw_vol->set_vol(dev->sw_vol, db_value);
     }
     return ESP_CODEC_DEV_NOT_SUPPORT;

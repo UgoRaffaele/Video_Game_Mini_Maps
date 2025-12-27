@@ -3,6 +3,7 @@
  *
  * SPDX-License-Identifier: Apache-2.0
  */
+#include "esp_idf_version.h"
 #include "audio_codec_ctrl_if.h"
 #include "esp_codec_dev_defaults.h"
 #include "driver/spi_common.h"

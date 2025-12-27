@@ -5,6 +5,7 @@
 #include <math.h>
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
+#include "libs/lz4/lz4.h"
 
 #include "images/area_locked_tile.h"
 
@@ -138,8 +139,65 @@ bool GPSLocator::fetch_images_from_sd(int index, int tile_x, int tile_y) {
         return false;
     }
     
+    uint8_t magic = 0;
+    uint8_t color_format = 0;
+    uint16_t flags = 0;
+    uint16_t width = 0;
+    uint16_t height = 0;
+    uint16_t stride = 0;
+    uint16_t reserved = 0;
+
+    if (fread(&magic, 1, sizeof(magic), f) != sizeof(magic) ||
+        fread(&color_format, 1, sizeof(color_format), f) != sizeof(color_format) ||
+        fread(&flags, 1, sizeof(flags), f) != sizeof(flags) ||
+        fread(&width, 1, sizeof(width), f) != sizeof(width) ||
+        fread(&height, 1, sizeof(height), f) != sizeof(height) ||
+        fread(&stride, 1, sizeof(stride), f) != sizeof(stride) ||
+        fread(&reserved, 1, sizeof(reserved), f) != sizeof(reserved)) {
+        printf("Tile %d: failed to read header\n", index);
+        fclose(f);
+        return false;
+    }
+
+    if (magic != 0x19) {
+        printf("Tile %d: invalid magic 0x%02X\n", index, magic);
+        fclose(f);
+        return false;
+    }
+    if (color_format != 0x12) {
+        printf("Tile %d: unexpected color format 0x%02X\n", index, color_format);
+        fclose(f);
+        return false;
+    }
+    if ((flags & 0x02) == 0) {
+        printf("Tile %d: missing LZ4 flag (flags=0x%04X)\n", index, flags);
+        fclose(f);
+        return false;
+    }
+    if (width != MAP_TILES_TILE_SIZE || height != MAP_TILES_TILE_SIZE) {
+        printf("Tile %d: unexpected size %ux%u\n", index, width, height);
+        fclose(f);
+        return false;
+    }
+
     // Skip 12-byte header
-    fseek(f, 12, SEEK_SET);
+    if (fseek(f, 12, SEEK_SET) != 0) {
+        printf("Tile %d: failed to seek header\n", index);
+        fclose(f);
+        return false;
+    }
+
+    uint32_t compressed_size = 0;
+    if (fread(&compressed_size, 1, sizeof(compressed_size), f) != sizeof(compressed_size)) {
+        printf("Tile %d: failed to read compressed size\n", index);
+        fclose(f);
+        return false;
+    }
+    if (compressed_size == 0) {
+        printf("Tile %d: compressed size is 0\n", index);
+        fclose(f);
+        return false;
+    }
     
     size_t img_size = MAP_TILES_TILE_SIZE * MAP_TILES_TILE_SIZE * MAP_TILES_BYTES_PER_PIXEL;
 
@@ -152,15 +210,29 @@ bool GPSLocator::fetch_images_from_sd(int index, int tile_x, int tile_y) {
         }
     }
     
-    // Clear buffer
-    memset(slot.buf, 0, img_size);
+    uint8_t *compressed_buf = (uint8_t*)heap_caps_malloc(compressed_size, MALLOC_CAP_8BIT);
+    if (!compressed_buf) {
+        printf("Tile %d: compressed buffer allocation failed (%zu)\n", index, compressed_size);
+        fclose(f);
+        return false;
+    }
 
-    // Read tile data
-    size_t bytes_read = fread(slot.buf, 1, img_size, f);
+    size_t bytes_read = fread(compressed_buf, 1, compressed_size, f);
     fclose(f);
+    if (bytes_read != compressed_size) {
+        printf("Tile %d: incomplete compressed read %zu/%u\n", index, bytes_read, compressed_size);
+        free(compressed_buf);
+        return false;
+    }
 
-    if (bytes_read != img_size) {
-        printf("Incomplete tile read: %zu bytes", bytes_read);
+    int decompressed = LZ4_decompress_safe((const char*)compressed_buf,
+                                           (char*)slot.buf,
+                                           (int)compressed_size,
+                                           (int)img_size);
+    free(compressed_buf);
+    if (decompressed < 0 || (size_t)decompressed != img_size) {
+        printf("Tile %d: LZ4 decompress failed (%d)\n", index, decompressed);
+        return false;
     }
     
     // Setup image descriptor
